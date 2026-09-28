@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN" data-theme="dark">
 <head>
-  <meta name="build-at" content="2026-09-28 12:08:59">
+  <meta name="build-at" content="2026-09-28 12:28:37">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f6f5e'/%3E%3Cpath d='M9 8h9a5 5 0 0 1 5 5v11H14a5 5 0 0 1-5-5V8z' fill='none' stroke='%23f4e4b8' stroke-width='2'/%3E%3Cpath d='M13 13h8M13 17h8M13 21h5' stroke='%23f4e4b8' stroke-width='1.6'/%3E%3C/svg%3E">
   <meta name="robots" content="noindex, nofollow, noarchive, noimageindex">
 <meta charset="UTF-8">
@@ -364,6 +364,7 @@ mark{background:var(--mark);color:inherit;padding:1px 2px;border-radius:3px}
         <div class="nhint" style="margin-top:3px">存在本机浏览器；导出成 md 丢进 _收件箱/ 即可并入知识库</div>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
+        <button class="mbtn" id="n-ghcfg">⚙ 连接</button>
         <button class="mbtn" id="n-export">⤓ 导出为 md</button>
         <button class="mclose" id="n-close" style="position:static;width:32px;height:32px">×</button>
       </div>
@@ -388,11 +389,33 @@ mark{background:var(--mark);color:inherit;padding:1px 2px;border-radius:3px}
           <button class="nbtn pri" id="n-save">＋ 记下</button>
           <button class="nbtn" id="n-clear">清空</button>
         </div>
+
+        <!-- GitHub 中转：留言 → Issue → 本机抓取。令牌只在浏览器 localStorage，不进仓库 -->
+        <div id="n-gh-box" style="display:none;margin-top:12px;padding:10px 12px;border:1px dashed var(--line);border-radius:10px">
+          <label>仓库（owner/repo）</label>
+          <input id="n-gh-repo" placeholder="recover2026/my-second-brain">
+          <label>令牌（只存在你这台浏览器，不上传、不进仓库）</label>
+          <input id="n-gh-token" type="password" placeholder="github_pat_...（细粒度，仅限本仓库 Issues 读写）">
+          <div class="nacts">
+            <button class="nbtn pri" id="n-gh-save">保存</button>
+            <button class="nbtn" id="n-gh-test">测试连接</button>
+            <button class="nbtn" id="n-gh-pushall">☁ 推送全部未推送</button>
+          </div>
+          <div class="nhint" id="n-gh-stat" style="margin-top:6px">
+            没配就只是本地留言（导出 md 的老办法照样能用）。令牌生成：GitHub → Settings
+            → Developer settings → Personal access tokens → <b>Fine-grained tokens</b>
+            → 只选这一个仓库 → Permissions 里只开 <b>Issues: Read and write</b>。
+          </div>
+        </div>
+
         <div class="nhint">
           <b style="color:var(--tx-dim)">怎么用：</b>随手先记着 → 攒一批点「导出为 md」<br>
           → 把下载的文件放进本库 <code>_收件箱/</code><br>
           → 跑 <code>python3 _工具/收纳留言.py</code><br>
           它会自动补 frontmatter、按归属落层、重建索引。
+          <br><br>
+          <b style="color:var(--tx-dim)">配了「⚙ 连接」之后：</b>每条留言右边会多一个
+          <code>☁ 推送</code>，点一下这条留言就发到你仓库的 Issues，可以由 AI 在本机自动抓取收纳。
         </div>
       </div>
       <div class="nlist" id="n-list"></div>
@@ -1172,6 +1195,7 @@ function renderNotes(){
       + '<div class="ncard-b">' + esc(x.body) + '</div>'
       + '<div class="nacts">'
       + '<button class="nbtn" data-nact="toggle">' + (x.done ? "↺ 标为待处理" : "✓ 标为已处理") + '</button>'
+      + '<button class="nbtn" data-nact="push">' + (x.gh ? "✓ 已推送 #" + esc(String(x.gh)) : "☁ 推送") + '</button>'
       + '<button class="nbtn" data-nact="del">删除</button></div>'
       + '</div>';
   }).join("");
@@ -1190,6 +1214,127 @@ function openNotes(){
 function closeNotes(){
   var m = $("nmask"); if(m) m.classList.remove("on");
 }
+/* ---------- GitHub 中转：留言 → Issue → 本机抓取 ----------
+ * 令牌只放在浏览器 localStorage，**绝不写进仓库文件**（公开仓库谁都能看源码）。
+ * 所以配套的令牌必须是「细粒度 + 仅本仓库 + 仅 Issues 读写」，丢了也只是别人能提 issue。
+ * Issue 正文刻意与 exportNotes() 的导出格式一致，抓取脚本可以直接喂给 收纳留言.py。
+ */
+var GH_KEY = "kb_gh_v1";
+var GH_LABEL = "kb-note";
+function loadGH(){
+  try{
+    var raw = localStorage.getItem(GH_KEY);
+    var o = raw ? JSON.parse(raw) : {};
+    return (o && typeof o === "object") ? o : {};
+  }catch(e){ return {}; }
+}
+function saveGH(o){
+  try{ localStorage.setItem(GH_KEY, JSON.stringify(o)); }catch(e){}
+}
+function ghReady(){ var c = loadGH(); return !!(c.repo && c.token); }
+function ghRepoPath(){
+  return "/repos/" + String(loadGH().repo || "").replace(/^\/+|\/+$/g, "");
+}
+function ghHeaders(){
+  return {
+    "Authorization": "Bearer " + loadGH().token,
+    "Accept": "application/vnd.github+json",
+    "Content-Type": "application/json"
+  };
+}
+function openGHCfg(){
+  var box = $("n-gh-box"); if(!box) return;
+  var on = box.style.display !== "none";
+  box.style.display = on ? "none" : "block";
+  if(!on){
+    var c = loadGH();
+    $("n-gh-repo").value = c.repo || "";
+    $("n-gh-token").value = c.token || "";
+  }
+}
+function ghStat(msg, bad){
+  var el = $("n-gh-stat"); if(!el) return;
+  el.innerHTML = msg;
+  el.style.color = bad ? "#e06c75" : "";
+}
+function noteToIssue(n){
+  /* 与导出 md 完全相同的字段名，抓取端零转换 */
+  var b = [];
+  b.push("归属: " + (n.owner || ""));
+  b.push("标签: " + (n.tag || ""));
+  b.push("目标: " + (n.target || "（未指定）"));
+  b.push("状态: " + (n.done ? "已处理" : "待处理"));
+  b.push("正文:");
+  String(n.body || "").split("\n").forEach(function(ln){ b.push("> " + ln); });
+  return { title: "[留言] " + (n.title || "未命名"), body: b.join("\n") };
+}
+function postIssue(payload, tryLabel, cb){
+  if(typeof fetch !== "function"){
+    cb(new Error("当前环境不支持联网提交（本地 file:// 打开时如此），请改用「⤓ 导出为 md」"), null);
+    return;
+  }
+  var body = { title: payload.title, body: payload.body };
+  if(tryLabel) body.labels = [GH_LABEL];
+  fetch("https://api.github.com" + ghRepoPath() + "/issues", {
+    method: "POST", headers: ghHeaders(), body: JSON.stringify(body)
+  }).then(function(r){
+    return r.json().then(function(j){ return { code: r.status, json: j }; },
+                         function(){ return { code: r.status, json: null }; });
+  }).then(function(res){
+    if(res.code === 201){ cb(null, res.json); return; }
+    /* 标签 kb-note 首次不存在会 422，去掉标签重试一次——标签只是给抓取端用的筛选条件，不是必需 */
+    if(tryLabel && (res.code === 422 || res.code === 400)){
+      postIssue(payload, false, cb);
+      return;
+    }
+    cb(new Error(((res.json && res.json.message) || ("HTTP " + res.code))), null);
+  })["catch"](function(e){ cb(e, null); });
+}
+function markPushed(id, num){
+  var arr = loadNotes(), hit = false;
+  for(var i = 0; i < arr.length; i++){
+    if(String(arr[i].id) === id){ arr[i].gh = num; hit = true; break; }
+  }
+  if(hit){ saveNotes(arr); renderNotes(); }
+}
+function pushNote(id, silent){
+  if(!ghReady()){
+    ghStat("还没填仓库/令牌 —— 填完才能推送。", true);
+    openGHCfg();
+    return;
+  }
+  var arr = loadNotes(), n = null;
+  for(var i = 0; i < arr.length; i++){ if(String(arr[i].id) === id){ n = arr[i]; break; } }
+  if(!n) return;
+  if(n.gh && !silent && !confirm("这条推过 #" + n.gh + "，再推一次会新建一个重复 Issue，确定？")) return;
+  postIssue(noteToIssue(n), true, function(err, iss){
+    if(err){
+      alert("推送失败：" + err.message + "\n\n常见原因：令牌权限没勾 Issues 读写 / 仓库名写错 / 令牌过期。");
+      return;
+    }
+    markPushed(String(id), iss && iss.number);
+    if(!silent) alert("已推送为 Issue #" + (iss && iss.number) + "\n本机跑：python3 _工具/抓取网站留言.py");
+  });
+}
+function pushAllUnpushed(){
+  if(!ghReady()){ openGHCfg(); return; }
+  var arr = loadNotes();
+  var q = arr.filter(function(x){ return !x.gh && !x.done; });
+  if(!q.length){ alert("没有待推送的留言。"); return; }
+  var done = 0, fail = 0;
+  (function next(i){
+    if(i >= q.length){
+      alert("推送完成：成功 " + done + " 条" + (fail ? ("，失败 " + fail + " 条") : ""));
+      renderNotes();
+      return;
+    }
+    postIssue(noteToIssue(q[i]), true, function(err, iss){
+      if(err){ fail++; } else { done++; markPushed(String(q[i].id), iss && iss.number); }
+      next(i + 1);
+    });
+  })(0);
+}
+
 function exportNotes(){
   var arr = loadNotes();
   if(!arr.length) return 0;
@@ -1256,6 +1401,7 @@ if($("n-list")) $("n-list").addEventListener("click", function(ev){
     if(String(arr[i].id) === id){
       if(act === "toggle"){ arr[i].done = !arr[i].done; hit = true; }
       else if(act === "del"){ if(confirm("删掉这条留言？不可恢复。")){ arr.splice(i, 1); hit = true; } }
+      else if(act === "push"){ pushNote(id); return; }   /* 异步，自己负责写回与重绘 */
       break;
     }
   }
@@ -1271,6 +1417,33 @@ if($("n-export")) $("n-export").addEventListener("click", function(){
     alert("当前环境不支持直接下载，请把内容从留言列表里手动抄出。");
   }
 });
+
+/* ---------- GitHub 中转的交互绑定 ---------- */
+if($("n-ghcfg")) $("n-ghcfg").addEventListener("click", openGHCfg);
+if($("n-gh-save")) $("n-gh-save").addEventListener("click", function(){
+  var repo = ($("n-gh-repo").value || "").trim();
+  var token = ($("n-gh-token").value || "").trim();
+  if(!repo || !token){ ghStat("仓库和令牌都得填。", true); return; }
+  if(repo.indexOf("/") < 0){ ghStat("仓库格式要是 owner/repo，例如 recover2026/my-second-brain。", true); return; }
+  saveGH({ repo: repo, token: token });
+  ghStat("已保存到本机浏览器（不进仓库）。点「测试连接」验一下。");
+});
+if($("n-gh-test")) $("n-gh-test").addEventListener("click", function(){
+  if(!ghReady()){ ghStat("先填仓库和令牌再测试。", true); return; }
+  if(typeof fetch !== "function"){ ghStat("当前环境不支持联网（本地打开时如此），线上网页可用。", true); return; }
+  ghStat("正在连接…");
+  fetch("https://api.github.com" + ghRepoPath(), { headers: ghHeaders() })
+    .then(function(r){ return r.json().then(function(j){ return { code: r.status, json: j }; }); })
+    .then(function(res){
+      if(res.code === 200){
+        ghStat("连接正常：<b>" + esc(res.json.full_name) + "</b>（私有 " +
+               (res.json.private ? "是" : "否") + "）。记住：令牌只能用「仅 Issues 读写」的细粒度令牌。");
+      }else{
+        ghStat("连接失败 HTTP " + res.code + "：" + esc((res.json && res.json.message) || ""), true);
+      }
+    })["catch"](function(e){ ghStat("连接异常：" + esc(String(e.message || e)), true); });
+});
+if($("n-gh-pushall")) $("n-gh-pushall").addEventListener("click", pushAllUnpushed);
 
 /* ---------- boot ---------- */
 try{
