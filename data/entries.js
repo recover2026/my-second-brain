@@ -1,6 +1,6 @@
 /* 自动生成，请勿手改。改内容请改 content/ 下 md，然后重跑 _工具/build_index.py */
 window.KB_DATA = {
-  "generated": "2026-09-28 11:00:15",
+  "generated": "2026-09-28 11:43:06",
   "total": 17,
   "entries": [
     {
@@ -338,8 +338,8 @@ window.KB_DATA = {
       "why": "想当然以为 git push 就能上 GitHub，实测 443 不通，白绕一圈",
       "summary": "上线前先测端口与端点可达性——这台机器 github.com:443 不通但 22 通、api.github.com 通，所以发布要改走 API 通道。",
       "summaryAuto": false,
-      "words": 340,
-      "body": "## 起因\n\n要把本地知识库做成永久网站，第一反应是 `git push` 到 GitHub Pages。\n实测下来发现这台机器的网络是\"半通\"的：\n\n| 目标 | 结果 |\n|---|---|\n| `github.com:443`（git https 端点） | **不通**（curl 000，nc 失败） |\n| `github.com:22`（SSH 端点） | **通** |\n| `api.github.com` | **通**（200） |\n| `codeload.github.com` | 通（301） |\n\n## 铁律\n\n> **发布 / 上线 / 拉代码之前，先花 30 秒探通道，再决定走哪条路。**\n\n探什么：`curl -o /dev/null -w \"%{http_code}\"` 看站点、`nc -z -G 6 域名 443/22` 看端口、\n`ls -la ~/.ssh` 看有没有钥匙。别等脚本失败了才发现路是断的。\n\n## 三条可用路径（按推荐顺序）\n\n1. **API 通道（最省事）**：只碰 `api.github.com`，用 Git Data API 建 blob→tree→commit→ref，\n   再用 `POST /repos/{o}/{r}/pages` 开 Pages。不需要 SSH 钥匙，也不需要 443。\n   → 已固化成 `_工具/发布到GitHub.py`。\n2. **SSH 通道**：22 通，但没有 `~/.ssh` 钥匙；要用户先 `ssh-keygen` 并把公钥贴到 GitHub。多一步人工。\n3. **443 通道**：本机不可用，别再试。\n\n## 顺带记住\n\n- 免费账户开 GitHub Pages **必须公开仓库**（私有仓库要付费计划）→ 内容会被 clone，\n  所以发布包要单独生成，只放内容、不放 `_工具/` `_收件箱/` 这类本机脚本。\n- 发布包注入 `<meta robots noindex>` 防收录，属\"低成本加一道锁\"。\n\n## 相关条目\n\n- [[给\"具体网址\"前必须先 curl 实测]]\n- [[东西在哪：资产地图总入口（MOC）]]",
+      "words": 488,
+      "body": "## 起因\n\n要把本地知识库做成永久网站，第一反应是 `git push` 到 GitHub Pages。\n实测下来发现这台机器的网络是\"半通\"的：\n\n| 目标 | 结果 |\n|---|---|\n| `github.com:443`（git https 端点） | **不通**（curl 000，nc 失败） |\n| `github.com:22`（SSH 端点） | **通** |\n| `api.github.com` | **通**（200） |\n| `codeload.github.com` | 通（301） |\n\n## 铁律\n\n> **发布 / 上线 / 拉代码之前，先花 30 秒探通道，再决定走哪条路。**\n\n探什么：`curl -o /dev/null -w \"%{http_code}\"` 看站点、`nc -z -G 6 域名 443/22` 看端口、\n`ls -la ~/.ssh` 看有没有钥匙。别等脚本失败了才发现路是断的。\n\n## 三条可用路径（按推荐顺序）\n\n1. **API 通道（最省事）**：只碰 `api.github.com`，用 Git Data API 建 blob→tree→commit→ref，\n   再用 `POST /repos/{o}/{r}/pages` 开 Pages。不需要 SSH 钥匙，也不需要 443。\n   → 已固化成 `_工具/发布到GitHub.py`。\n2. **SSH 通道**：22 通，但没有 `~/.ssh` 钥匙；要用户先 `ssh-keygen` 并把公钥贴到 GitHub。多一步人工。\n3. **443 通道**：本机不可用，别再试。\n\n## 坑 2：空仓库用不了 Git Data API\n\n项目新建的仓库**默认是空的**（无 commit、无 ref）。这时直接 `POST /repos/{o}/{r}/git/blobs`\n会被拒：**409 Git Repository is empty.**\n\n解法：先用 contents API 写一个小文件造出首次提交，把仓库\"激活\"，之后 Git Data API 一切正常。\n\n```python\nPUT /repos/{o}/{r}/contents/README.md   {\"message\":\"init\",\"content\":\"<base64>\"}\n```\n\n顺带两条：\n\n- **别硬编码 `main`**：用 `GET /repos/{o}/{r}` 里的 `default_branch`，用户的默认分支可能是 master。\n- 两次都踩在同一个根上——**想当然**。以为\"能建仓库就能传文件\"，实际中间还有个状态叫\"空\"。\n\n## 顺带记住\n\n- 免费账户开 GitHub Pages **必须公开仓库**（私有仓库要付费计划）→ 内容会被 clone，\n  所以发布包要单独生成，只放内容、不放 `_工具/` `_收件箱/` 这类本机脚本。\n- 发布包注入 `<meta robots noindex>` 防收录，属\"低成本加一道锁\"。\n\n## 相关条目\n\n- [[给\"具体网址\"前必须先 curl 实测]]\n- [[东西在哪：资产地图总入口（MOC）]]",
       "file": "content/01-经验层/2026-09-28-发布上线先探本机网络通道.md",
       "links": [
         "bffc8f0efb",
