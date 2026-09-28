@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN" data-theme="dark">
 <head>
-  <meta name="build-at" content="2026-09-28 12:28:37">
+  <meta name="build-at" content="2026-09-28 12:51:56">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f6f5e'/%3E%3Cpath d='M9 8h9a5 5 0 0 1 5 5v11H14a5 5 0 0 1-5-5V8z' fill='none' stroke='%23f4e4b8' stroke-width='2'/%3E%3Cpath d='M13 13h8M13 17h8M13 21h5' stroke='%23f4e4b8' stroke-width='1.6'/%3E%3C/svg%3E">
   <meta name="robots" content="noindex, nofollow, noarchive, noimageindex">
 <meta charset="UTF-8">
@@ -205,6 +205,30 @@ body{
 #note-cnt{display:inline-block;min-width:15px;background:var(--gold);color:#151515;
   border-radius:7px;padding:0 4px;font-size:10px;font-weight:700;margin-left:4px;vertical-align:1px}
 
+/* ---------- 公告条：本机 → 网页的单向通知 ---------- */
+.notice-bar{display:flex;gap:10px;align-items:flex-start;padding:9px 18px;flex:0 0 auto;
+  border-bottom:1px solid var(--line);background:linear-gradient(90deg,var(--ac-soft),transparent 72%)}
+.notice-bar.warn{background:linear-gradient(90deg,rgba(210,153,34,.18),transparent 72%)}
+.nb-ico{font-size:14px;line-height:1.6;flex:0 0 auto}
+.nb-body{flex:1;font-size:12.5px;color:var(--tx-dim);line-height:1.65;white-space:pre-wrap}
+.nb-body b{color:var(--tx);font-weight:600;margin-right:8px}
+.nb-acts{flex:0 0 auto;display:flex;gap:6px;align-items:center}
+
+/* ---------- 留言追话：一条留言下的来往对话 ---------- */
+.nthread{margin-top:11px;padding-top:10px;border-top:1px dashed var(--line);
+  display:flex;flex-direction:column;gap:8px}
+.nmsg{border:1px solid var(--line);background:var(--card-h);border-radius:9px;
+  padding:8px 11px;font-size:12.5px;line-height:1.75;color:var(--tx-dim);white-space:pre-wrap}
+.nmsg.me{margin-left:20%;border-color:rgba(63,185,80,.38)}
+.nmsg.ai{margin-right:20%;border-color:rgba(224,179,77,.45);background:rgba(224,179,77,.07);color:var(--tx)}
+.nmsg-h{font-size:10.5px;color:var(--tx-mute);display:flex;justify-content:space-between;
+  gap:10px;margin-bottom:4px}
+.nthread-load{font-size:11.5px;color:var(--tx-mute)}
+.nmsg-in{width:100%;font-family:inherit;font-size:12.5px;line-height:1.7;resize:vertical;
+  background:var(--card);color:var(--tx);border:1px solid var(--line);
+  border-radius:8px;padding:7px 10px}
+.nmsg-in:focus{outline:none;border-color:var(--ac)}
+
 /* ---------- Detail ---------- */
 .mask{position:fixed;inset:0;background:rgba(0,0,0,.62);
   display:none;align-items:center;justify-content:center;z-index:50;padding:32px;
@@ -331,6 +355,16 @@ mark{background:var(--mark);color:inherit;padding:1px 2px;border-radius:3px}
         <span><b id="s-tags">0</b> 标签</span>
       </div>
     </div>
+    <!-- 公告条：本机推送过来的消息，不用重发网站就能更新 -->
+    <div class="notice-bar" id="notice-bar" style="display:none">
+      <span class="nb-ico" id="nb-ico">📣</span>
+      <div class="nb-body" id="nb-body"></div>
+      <div class="nb-acts">
+        <button class="nbtn" id="nb-more" style="display:none"></button>
+        <button class="nbtn" id="nb-refresh">↻</button>
+        <button class="nbtn" id="nb-ok">知道了</button>
+      </div>
+    </div>
     <div class="list" id="list"></div>
     <div class="graph" id="graph">
       <div class="gtip">滚轮缩放 · 拖动空白平移 · 拖节点调整 · 点节点看详情</div>
@@ -361,7 +395,10 @@ mark{background:var(--mark);color:inherit;padding:1px 2px;border-radius:3px}
     <div class="nhead">
       <div>
         <h2>✎ 留言 · 专家包升级意见箱</h2>
-        <div class="nhint" style="margin-top:3px">存在本机浏览器；导出成 md 丢进 _收件箱/ 即可并入知识库</div>
+        <div class="nhint" style="margin-top:3px">
+          双向通道：<b>☁ 推送</b> 后我这边就能抓到；我回了话，点卡片上的 <b>💬 回复</b> 就能看到。<br>
+          网页顶部那条 <b>📣 公告条</b>是我主动给你留的话（不用重发网站，会自动更新）。
+        </div>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
         <button class="mbtn" id="n-ghcfg">⚙ 连接</button>
@@ -1196,6 +1233,7 @@ function renderNotes(){
       + '<div class="nacts">'
       + '<button class="nbtn" data-nact="toggle">' + (x.done ? "↺ 标为待处理" : "✓ 标为已处理") + '</button>'
       + '<button class="nbtn" data-nact="push">' + (x.gh ? "✓ 已推送 #" + esc(String(x.gh)) : "☁ 推送") + '</button>'
+      + (x.gh ? '<button class="nbtn" data-nact="thread">💬 回复</button>' : '')
       + '<button class="nbtn" data-nact="del">删除</button></div>'
       + '</div>';
   }).join("");
@@ -1208,7 +1246,7 @@ function findUp(node, attr){
   return null;
 }
 function openNotes(){
-  initNoteTags(); renderNotes();
+  initNoteTags(); renderNotes(); refreshNotice();
   var m = $("nmask"); if(m) m.classList.add("on");
 }
 function closeNotes(){
@@ -1335,6 +1373,139 @@ function pushAllUnpushed(){
   })(0);
 }
 
+/* ---------- 双向通道：本机 → 网页 ----------
+ * 反方向的两条路：
+ *   ① 针对某条留言的具体回复 → 该 Issue 的 comments（点卡片上的「💬 回复」）
+ *   ② 主动广播（提醒/结论/交办） → 仓库里的 data/notice.json → 顶部公告条
+ * 两条都不需要重新发布网站，写完隔几秒就能刷出来。
+ */
+var DEFAULT_REPO = "recover2026/my-second-brain";
+var NOTICE_KEY = "kb_notice_seen";
+var AI_MARK = "<!--kb:ai-->";   /* 回信里的隐藏标记，用来区分气泡方向（同一账号分不出作者） */
+
+function repoFullName(){
+  var c = loadGH();
+  return String((c && c.repo) || DEFAULT_REPO).replace(/^\/+|\/+$/g, "");
+}
+function rawUrl(path, branch){
+  return "https://raw.githubusercontent.com/" + repoFullName() + "/"
+       + (branch || "main") + "/" + path + "?t=" + Date.now();
+}
+function ghGet(path, cb){
+  /* 有令牌就带令牌，没令牌匿名也能读公开仓库，只是速率受限——降级总比看不见好 */
+  if(typeof fetch !== "function"){ cb(new Error("当前环境不支持联网（本地 file:// 打开时如此）"), null); return; }
+  var h = { "Accept": "application/vnd.github+json" };
+  if(ghReady()) h["Authorization"] = "Bearer " + loadGH().token;
+  fetch("https://api.github.com" + path, { headers: h })
+    .then(function(r){
+      return r.json().then(function(j){ return { code: r.status, json: j }; },
+                           function(){ return { code: r.status, json: null }; });
+    })
+    .then(function(res){
+      if(res.code === 200) cb(null, res.json);
+      else cb(new Error("HTTP " + res.code + " " + (((res.json && res.json.message) || ""))), null);
+    })["catch"](function(e){ cb(e, null); });
+}
+
+/* --- 公告条 --- */
+function noticeSeen(){
+  try{ return localStorage.getItem(NOTICE_KEY) || ""; }catch(e){ return ""; }
+}
+function setNoticeSeen(v){ try{ localStorage.setItem(NOTICE_KEY, v); }catch(e){} }
+var noticeUnread = [];
+function fetchNotice(cb){
+  if(typeof fetch !== "function"){ cb([]); return; }
+  fetch(rawUrl("data/notice.json"))
+    .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(function(j){ cb((j && j.items) ? j.items : []); })
+    ["catch"](function(){ cb([]); });   /* 没有公告文件是常态，静默跳过 */
+}
+function renderNotice(items){
+  var bar = $("notice-bar"); if(!bar) return;
+  var seen = noticeSeen();
+  noticeUnread = (items || []).filter(function(x){ return String(x.id || "") > seen; })
+                              .sort(function(a, b){ return String(a.id || "").localeCompare(String(b.id || "")); });
+  if(!noticeUnread.length){ bar.style.display = "none"; return; }
+  var last = noticeUnread[noticeUnread.length - 1];
+  bar.style.display = "flex";
+  bar.className = "notice-bar" + (last.level === "warn" ? " warn" : "");
+  if($("nb-ico")) $("nb-ico").textContent = (last.level === "warn") ? "⚠️" : "📣";
+  if($("nb-body")) $("nb-body").innerHTML = "<b>" + esc(last.ts || "") + "</b>" + esc(last.text || "");
+  var more = $("nb-more");
+  if(more){
+    if(noticeUnread.length > 1){
+      more.style.display = "";
+      more.textContent = "还有 " + (noticeUnread.length - 1) + " 条";
+    }else{ more.style.display = "none"; }
+  }
+}
+function refreshNotice(){ fetchNotice(renderNotice); }
+
+/* --- 某条留言之下的来往对话 --- */
+function nCardById(id){
+  if(!document.querySelectorAll) return null;
+  var all = document.querySelectorAll(".ncard");
+  for(var i = 0; i < all.length; i++){
+    if(all[i].getAttribute("data-nid") === String(id)) return all[i];
+  }
+  return null;
+}
+function renderThread(card, cmts, num){
+  var old = card.querySelector ? card.querySelector(".nthread") : null;
+  if(old) card.removeChild(old);
+  var box = document.createElement("div");
+  box.className = "nthread";
+  if(!cmts.length){
+    box.innerHTML = '<div class="nthread-load">还没有回复。本机跑 _工具/回信.py 就能回给你。</div>';
+  }
+  (cmts || []).forEach(function(c){
+    var raw = String(c.body || "");
+    var isAI = raw.indexOf(AI_MARK) >= 0;
+    var txt = raw.split(AI_MARK).join("").replace(/^\s*\n+/, "").replace(/\s+$/, "");
+    var d = document.createElement("div");
+    d.className = "nmsg " + (isAI ? "ai" : "me");
+    d.innerHTML = '<div class="nmsg-h"><span>' + (isAI ? "🤖 回信" : "🙋 我") + '</span>'
+      + '<span>' + esc(String(c.created_at || "").slice(0, 16).replace("T", " ")) + '</span></div>'
+      + '<div>' + esc(txt) + '</div>';
+    box.appendChild(d);
+  });
+  /* 网页端也能在同一条 thread 里接着说 —— 这才是双向 */
+  if(num && ghReady() && typeof fetch === "function"){
+    var f = document.createElement("div");
+    f.innerHTML = '<textarea class="nmsg-in" rows="2" placeholder="再补一句…（会发到同一个 Issue 下）"></textarea>'
+      + '<div class="nacts"><button class="nbtn pri" data-nact="send">↑ 发出</button></div>';
+    box.appendChild(f);
+  }
+  card.appendChild(box);
+}
+function loadThread(id, num){
+  var card = nCardById(id); if(!card) return;
+  var old = card.querySelector ? card.querySelector(".nthread") : null;
+  if(old) card.removeChild(old);
+  var box = document.createElement("div");
+  box.className = "nthread";
+  box.innerHTML = '<div class="nthread-load">正在拉取回复…</div>';
+  card.appendChild(box);
+  ghGet("/repos/" + repoFullName() + "/issues/" + num + "/comments", function(err, list){
+    if(err){ renderThread(card, [], num); return; }
+    renderThread(card, list || [], num);
+  });
+}
+
+function postThreadMsg(id, num, text){
+  if(!ghReady()){ alert("先在「⚙ 连接」里配好仓库和令牌，才能在网页上直接说话。"); return; }
+  if(typeof fetch !== "function"){ alert("当前环境不支持联网提交。"); return; }
+  fetch("https://api.github.com/repos/" + repoFullName() + "/issues/" + num + "/comments", {
+    method: "POST", headers: ghHeaders(), body: JSON.stringify({ body: text })
+  }).then(function(r){
+    return r.json().then(function(j){ return { code: r.status, json: j }; },
+                         function(){ return { code: r.status, json: null }; });
+  }).then(function(res){
+    if(res.code === 201){ loadThread(id, num); return; }
+    alert("发送失败 HTTP " + res.code + "：" + (((res.json && res.json.message) || "")));
+  })["catch"](function(e){ alert("发送异常：" + String(e.message || e)); });
+}
+
 function exportNotes(){
   var arr = loadNotes();
   if(!arr.length) return 0;
@@ -1402,6 +1573,15 @@ if($("n-list")) $("n-list").addEventListener("click", function(ev){
       if(act === "toggle"){ arr[i].done = !arr[i].done; hit = true; }
       else if(act === "del"){ if(confirm("删掉这条留言？不可恢复。")){ arr.splice(i, 1); hit = true; } }
       else if(act === "push"){ pushNote(id); return; }   /* 异步，自己负责写回与重绘 */
+      else if(act === "thread"){ loadThread(id, arr[i].gh); return; }
+      else if(act === "send"){
+        var c2 = nCardById(id);
+        var ta = (c2 && c2.querySelector) ? c2.querySelector(".nmsg-in") : null;
+        var v = ta ? String(ta.value || "").trim() : "";
+        if(!v){ alert("先写点什么再发。"); return; }
+        postThreadMsg(id, arr[i].gh, v);
+        return;
+      }
       break;
     }
   }
@@ -1445,6 +1625,23 @@ if($("n-gh-test")) $("n-gh-test").addEventListener("click", function(){
 });
 if($("n-gh-pushall")) $("n-gh-pushall").addEventListener("click", pushAllUnpushed);
 
+/* ---------- 公告条交互 ---------- */
+if($("nb-ok")) $("nb-ok").addEventListener("click", function(){
+  if(noticeUnread.length) setNoticeSeen(String(noticeUnread[noticeUnread.length - 1].id || ""));
+  var bar = $("notice-bar"); if(bar) bar.style.display = "none";
+});
+if($("nb-refresh")) $("nb-refresh").addEventListener("click", function(){
+  noticeUnread = [];
+  refreshNotice();
+});
+if($("nb-more")) $("nb-more").addEventListener("click", function(){
+  if(!noticeUnread.length) return;
+  var txt = noticeUnread.slice().reverse().map(function(x){
+    return "【" + (x.ts || "") + "】\n" + (x.text || "");
+  }).join("\n\n" + "────────\n\n");
+  alert("未读公告 " + noticeUnread.length + " 条：\n\n" + txt);
+});
+
 /* ---------- boot ---------- */
 try{
   var th = localStorage.getItem("kb_theme");
@@ -1452,6 +1649,7 @@ try{
 }catch(e){}
 renderSide(); syncNav(); render();
 initNoteTags(); updNoteCnt();
+refreshNotice();   /* 开机就拉一次本机推送过来的公告 */
 
 /* ---------- 数据热更新 ----------
  * 用 <script> 重载 data/entries.js 来探测变化 —— 不用 fetch/XHR，
@@ -1491,6 +1689,21 @@ initNoteTags(); updNoteCnt();
   timer = setInterval(poll, 4000);
   document.addEventListener("visibilitychange", function(){ if(!document.hidden) poll(); });
 })();
+
+/* ---------- 测试出口 ----------
+ * 整个脚本是 IIFE + 严格模式，里面所有函数对外都不可见，
+ * 而「双向通道」靠的是网络回调（测试环境里没有 fetch，事件也驱动不到），
+ * 只能把几个纯渲染函数显式挂出来让 _工具/render_test.js 断言。
+ * 只暴露函数引用，不暴露任何数据，也不影响页面本身的行为。
+ */
+if(typeof window !== "undefined"){
+  window.__kb = {
+    renderNotice: renderNotice,
+    renderThread: renderThread,
+    loadThread: loadThread,
+    esc: esc
+  };
+}
 
 })();
 </script>
